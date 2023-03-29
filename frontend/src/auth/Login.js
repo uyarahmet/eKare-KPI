@@ -1,12 +1,14 @@
-import React, {useState} from "react"
+import React, {useState, useContext} from "react"
 import './login.css'
 import 'bootstrap/dist/css/bootstrap.min.css';
+import {AuthContext} from '../contexts/AuthContext'
 
 
 export default function (props) {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const { isLoggedIn, setIsLoggedIn }  = useContext(AuthContext)
 
   function handleMailChange(event) {
     setEmail(event.target.value)
@@ -18,6 +20,16 @@ export default function (props) {
 
   function handleSubmit() {
     // fill in backend integration
+    fetch("https://jsonplaceholder.typicode.com/todos", {
+      method: "POST",
+      body: JSON.stringify({
+        username: email,
+        password: password,
+      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      }
+    });
   }
 
   return (

@@ -1,7 +1,7 @@
 import React, {useState} from "react"
 import './signup.css'
 import 'bootstrap/dist/css/bootstrap.min.css';
-
+import axios from 'axios'
 
 export default function (props) {
 
@@ -22,8 +22,27 @@ export default function (props) {
     setReenteredPassword(event.target.value)
   }
 
-  function handleSubmit() {
-    // fill in backend integration
+  async function handleSubmit() {
+
+    const details = {'username': email, 'password': password}
+
+    var formBody = [];
+    for (var property in details) {
+      var encodedKey = encodeURIComponent(property);
+      var encodedValue = encodeURIComponent(details[property]);
+      formBody.push(encodedKey + "=" + encodedValue);
+    }
+
+    formBody = formBody.join("&");
+
+    const response = await fetch("http://localhost:8000/signup", {
+      method: "POST",
+      body: formBody,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      }
+    })
+
   }
 
   return (
