@@ -1,17 +1,26 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import Login from './auth/Login'
 import SignUp from './auth/SignUp'
+import Home from './Home'
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import AuthContextProvider from './contexts/AuthContext'
+import AuthContextProvider, {AuthContext} from './contexts/AuthContext'
 
 const RouteComponent = () => {
+
+  const {isLoggedIn, setIsLoggedIn} = useContext(AuthContext)
+
   return (
     <BrowserRouter>
       <Routes>
+      {isLoggedIn? <>
         <Route path="login" element={<Login/>}/>
         <Route path="signup" element={<SignUp/>}/>
+        </>
+        :
+          <Route path="" element={<Home/>}/>
+        }
       </Routes>
     </BrowserRouter>
   )

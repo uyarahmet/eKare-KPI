@@ -10,6 +10,7 @@ export default function (props) {
   const [password, setPassword] = useState('')
   const { isLoggedIn, setIsLoggedIn }  = useContext(AuthContext)
 
+
   function handleMailChange(event) {
     setEmail(event.target.value)
   }
@@ -18,18 +19,36 @@ export default function (props) {
     setPassword(event.target.value)
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     // fill in backend integration
-    fetch("https://jsonplaceholder.typicode.com/todos", {
+    const details = {'username': email, 'password': password}
+
+    var formBody = [];
+    for (var property in details) {
+      var encodedKey = encodeURIComponent(property);
+      var encodedValue = encodeURIComponent(details[property]);
+      formBody.push(encodedKey + "=" + encodedValue);
+    }
+
+    formBody = formBody.join("&");
+
+    const response = await fetch("http://localhost:8000/access", {
       method: "POST",
-      body: JSON.stringify({
-        username: email,
-        password: password,
-      }),
+      body: formBody,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       }
-    });
+    })
+
+    if(response.status == 200){
+      setIsLoggedIn(true)
+      window.location = '/'
+    }else{
+      //
+    }
+
+    console.log(response)
+
   }
 
   return (
