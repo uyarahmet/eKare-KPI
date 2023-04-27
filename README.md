@@ -2,7 +2,7 @@
 
 Contributors:
 
-Ahmet Uyar
-Celal Kaplan
-Mert Altınsoy
-Ali Taylan Akyürek
+- Ahmet Uyar
+- Celal Kaplan
+- Mert Altınsoy
+- Ali Taylan Akyürek
