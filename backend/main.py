@@ -439,3 +439,79 @@ async def pie_chart(request: Request):
     }
 
     return templates.TemplateResponse("chart.html", {"request": request, "chart_data": json.dumps(chart_data)})
+
+
+# df = pd.read_csv('inSightDataCR_May2020_Koc.csv')
+df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset'], date_parser=lambda x: pd.to_datetime(x, format='%m/%d/%y'))
+
+
+# PATIENT STATUS
+@app.get("/total_patients")
+async def get_total_patients():
+    total_patients = df['id_patient'].nunique()
+    return {"total_patients": total_patients}
+
+
+@app.get("/patients_by_gender")
+async def get_patients_by_gender():
+    patients_by_gender = df.groupby('gender')['id_patient'].nunique().to_dict()
+    return {"patients_by_gender": patients_by_gender}
+
+
+@app.get("/active_patients_by_gender")
+async def get_active_patients_by_gender():
+    df['gender'] = df['gender'].fillna('Unknown')
+    df['is_enabled'] = df['is_enabled'].fillna(False).astype(bool)
+    active_patients_by_gender = df[df['is_enabled'] == True].groupby('gender')['id_patient'].nunique().to_dict()
+    return {"active_patients_by_gender": active_patients_by_gender}
+
+
+@app.get("/patients_by_age_group")
+async def get_patients_by_age_group():
+    df['Age'] = df['Age'].fillna(df['Age'].mean())
+    bins = [0, 18, 30, 40, 50, 60, 70, 120]
+    labels = ['<18', '18-29', '30-39', '40-49', '50-59', '60-69', '70+']
+    df['age_group'] = pd.cut(df['Age'], bins=bins, labels=labels)
+    patients_by_age_group = df.groupby('age_group')['id_patient'].nunique().to_dict()
+    return {"patients_by_age_group": patients_by_age_group}
+
+
+@app.get("/patients_by_site")  # Site Location vs. Patient Count
+async def get_patients_by_site():
+    patients_by_site = df.groupby('site_name')['id_patient'].nunique().to_dict()
+    return {"patients_by_site": patients_by_site}
+
+
+@app.get("/common_wound_types")
+async def get_common_wound_types():
+    df_nonull = df.dropna(subset=['type'])
+    common_wound_types = df_nonull.groupby('id_wound')['type'].first().value_counts().to_dict()
+    return {"common_wound_types": common_wound_types}
+
+
+@app.get("/common_secondary_types")
+async def get_common_secondary_types():
+    df_nonull = df.dropna(subset=['secondary_type'])
+    common_secondary_types = df_nonull.groupby('id_wound')['secondary_type'].first().value_counts().to_dict()
+    return {"common_secondary_types": common_secondary_types}
+
+
+@app.get("/common_primary_locations")
+async def get_common_primary_locations():
+    df_nonull = df.dropna(subset=['primary_location'])
+    common_primary_locations = df_nonull.groupby('id_wound')['primary_location'].first().value_counts().to_dict()
+    return {"common_primary_locations": common_primary_locations}
+
+
+@app.get("/common_secondary_locations")
+async def get_common_secondary_locations():
+    df_nonull = df.dropna(subset=['secondary_location'])
+    common_secondary_locations = df_nonull.groupby('id_wound')['secondary_location'].first().value_counts().to_dict()
+    return {"common_secondary_locations": common_secondary_locations}
+
+
+# WOUND STATUS
+@app.get("/total_wounds")
+async def get_total_wounds():
+    total_wounds = df['id_wound'].nunique()
+    return {"total_wounds": total_wounds}
