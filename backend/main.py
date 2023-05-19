@@ -445,65 +445,80 @@ async def pie_chart(request: Request):
 df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset'], date_parser=lambda x: pd.to_datetime(x, format='%m/%d/%y'))
 
 
+
 # PATIENT STATUS
-@app.get("/total_patients")
+@app.get("/total_patients") # Returns total unique patients in the dataset
 async def get_total_patients():
     total_patients = df['id_patient'].nunique()
     return {"total_patients": total_patients}
 
 
-@app.get("/patients_by_gender")
+@app.get("/patients_by_gender") # Returns count of patients grouped by gender
 async def get_patients_by_gender():
     patients_by_gender = df.groupby('gender')['id_patient'].nunique().to_dict()
     return {"patients_by_gender": patients_by_gender}
 
 
-@app.get("/active_patients_by_gender")
+@app.get("/active_patients_by_gender") # Returns count of active patients grouped by gender
 async def get_active_patients_by_gender():
     df['gender'] = df['gender'].fillna('Unknown')
     df['is_enabled'] = df['is_enabled'].fillna(False).astype(bool)
     active_patients_by_gender = df[df['is_enabled'] == True].groupby('gender')['id_patient'].nunique().to_dict()
-    return {"active_patients_by_gender": active_patients_by_gender}
+    return {"Active patients categorised by Gender": active_patients_by_gender}
 
 
-@app.get("/patients_by_age_group")
+@app.get("/patients_by_age_group") # Returns count of patients grouped by age groups
 async def get_patients_by_age_group():
     df['Age'] = df['Age'].fillna(df['Age'].mean())
     bins = [0, 18, 30, 40, 50, 60, 70, 120]
     labels = ['<18', '18-29', '30-39', '40-49', '50-59', '60-69', '70+']
     df['age_group'] = pd.cut(df['Age'], bins=bins, labels=labels)
     patients_by_age_group = df.groupby('age_group')['id_patient'].nunique().to_dict()
-    return {"patients_by_age_group": patients_by_age_group}
+    return {"Patients categorised by Age": patients_by_age_group}
 
 
-@app.get("/patients_by_site")  # Site Location vs. Patient Count
+@app.get("/new_patients_by_month/{year}/{month}") # Returns new patients count by month for a given 6-month period
+# ending at {year}-{month}
+async def get_new_patients_by_month(year: int, month: int):
+    df_noNull = df.dropna(subset=['onset'])
+    end_date = pd.to_datetime(f"{year}-{month}-01")
+    start_date = end_date - pd.DateOffset(months=6)
+    new_patients = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
+    new_patients_by_month = new_patients.groupby(new_patients['onset'].dt.to_period("M"))['id_patient'].nunique()
+    new_patients_by_month.index = new_patients_by_month.index.strftime('%Y-%m')
+    total_new_patients = new_patients['id_patient'].nunique()
+    message = f"New patients recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
+    return {message: new_patients_by_month.to_dict(), "total_new_patients": total_new_patients}
+
+
+@app.get("/patients_by_site") # Returns count of patients grouped by site name
 async def get_patients_by_site():
     patients_by_site = df.groupby('site_name')['id_patient'].nunique().to_dict()
     return {"patients_by_site": patients_by_site}
 
 
-@app.get("/common_wound_types")
+@app.get("/common_wound_types") # Returns common wound types in the dataset
 async def get_common_wound_types():
     df_nonull = df.dropna(subset=['type'])
     common_wound_types = df_nonull.groupby('id_wound')['type'].first().value_counts().to_dict()
     return {"common_wound_types": common_wound_types}
 
 
-@app.get("/common_secondary_types")
+@app.get("/common_secondary_types") # Returns common secondary wound types in the dataset
 async def get_common_secondary_types():
     df_nonull = df.dropna(subset=['secondary_type'])
     common_secondary_types = df_nonull.groupby('id_wound')['secondary_type'].first().value_counts().to_dict()
     return {"common_secondary_types": common_secondary_types}
 
 
-@app.get("/common_primary_locations")
+@app.get("/common_primary_locations") # Returns common primary wound locations in the dataset
 async def get_common_primary_locations():
     df_nonull = df.dropna(subset=['primary_location'])
     common_primary_locations = df_nonull.groupby('id_wound')['primary_location'].first().value_counts().to_dict()
     return {"common_primary_locations": common_primary_locations}
 
 
-@app.get("/common_secondary_locations")
+@app.get("/common_secondary_locations") # Returns common secondary wound locations in the dataset
 async def get_common_secondary_locations():
     df_nonull = df.dropna(subset=['secondary_location'])
     common_secondary_locations = df_nonull.groupby('id_wound')['secondary_location'].first().value_counts().to_dict()
@@ -511,7 +526,64 @@ async def get_common_secondary_locations():
 
 
 # WOUND STATUS
-@app.get("/total_wounds")
+@app.get("/total_wounds") # Returns total unique wounds in the dataset
 async def get_total_wounds():
     total_wounds = df['id_wound'].nunique()
     return {"total_wounds": total_wounds}
+
+
+@app.get("/new_wounds_by_month/{year}/{month}") # Returns new wounds count by month for a given 6-month period
+# ending at {year}-{month}
+async def get_new_wounds_by_month(year: int, month: int):
+    df_noNull = df.dropna(subset=['onset'])
+    end_date = pd.to_datetime(f"{year}-{month}-01")
+    start_date = end_date - pd.DateOffset(months=6)
+    new_wounds = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
+    new_wounds_by_month = new_wounds.groupby(new_wounds['onset'].dt.to_period("M"))['id_wound'].nunique()
+    new_wounds_by_month.index = new_wounds_by_month.index.strftime('%Y-%m')
+    total_new_wounds = new_wounds['id_wound'].nunique()
+    message = f"New wounds recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
+    return {message: new_wounds_by_month.to_dict(), "total_new_wounds": total_new_wounds}
+
+
+@app.get("/total_measurements") # Returns the total unique measurements in the dataset
+async def get_total_measurements():
+    total_measurements = df['id_measurement'].nunique()
+    return {"total_measurements": total_measurements}
+
+
+@app.get("/new_measurements_by_month/{year}/{month}")  # Returns new measurements count by month for a given
+# 6-month period ending at {year}-{month}
+async def get_new_measurements_by_month(year: int, month: int):
+    df_noNull = df.dropna(subset=['date'])
+    end_date = pd.to_datetime(f"{year}-{month}-01")
+    start_date = end_date - pd.DateOffset(months=6)
+    new_measurements = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
+    new_measurements_by_month = new_measurements.groupby(new_measurements['onset'].dt.to_period("M"))['id_measurement'].nunique()
+    new_measurements_by_month.index = new_measurements_by_month.index.strftime('%Y-%m')
+    total_new_measurements = new_measurements['id_measurement'].nunique()
+    message = f"New measurements recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
+    return {message: new_measurements_by_month.to_dict(), "total_new_measurements": total_new_measurements}
+
+
+@app.get("/wound_status") # Returns the status of each wound in the dataset
+async def get_wound_status():
+    df_nonull = df.dropna(subset=['status'])
+    wound_status = df_nonull.groupby('id_wound')['status'].first().value_counts().to_dict()
+    return {"wound_status": wound_status}
+
+
+@app.get("/wound_types") # Returns wound types both primary and secondary
+async def get_wound_types():
+    df_nonull = df.dropna(subset=['type', 'secondary_type'])
+    wound_types = pd.concat([df_nonull.groupby('id_wound')['type'].first(), df_nonull.groupby('id_wound')
+    ['secondary_type'].first()]).value_counts().to_dict()
+    return {"wound_types": wound_types}
+
+
+@app.get("/wound_locations") # Returns wound locations both primary and secondary
+async def get_wound_locations():
+    df_nonull = df.dropna(subset=['primary_location', 'secondary_location'])
+    wound_locations = pd.concat([df_nonull.groupby('id_wound')['primary_location'].first(), df_nonull.groupby
+    ('id_wound')['secondary_location'].first()]).value_counts().to_dict()
+    return {"wound_locations": wound_locations}
