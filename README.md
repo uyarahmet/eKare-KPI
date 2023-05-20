@@ -4,5 +4,5 @@ Contributors:
 
 - Ahmet Uyar
 - Celal Kaplan
-- Mert Altınsoy
+- Mert Metehan Altınsoy
 - Ali Taylan Akyürek
