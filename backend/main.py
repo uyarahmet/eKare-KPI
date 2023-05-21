@@ -1,8 +1,10 @@
-
+import pandas as pd
+from fastapi.openapi.models import Response
 from fastapi.responses import HTMLResponse
 import sqlite3
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas
 
 from datetime import datetime, timedelta
 from typing import Annotated, Union
@@ -13,16 +15,16 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-
 from fastapi.templating import Jinja2Templates
 import json
+
+from starlette.responses import FileResponse
 
 # to get a string like this run:
 # openssl rand -hex 32
 SECRET_KEY = "143169a6c0fe9c5c55cb347539682a52f3afecf6e1e780135bc475f3c8c9bcd0"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 
 fake_users_db = {
     "johndoe": {
@@ -86,8 +88,8 @@ def get_user(conn, username: str, password: str):
     user = cur.fetchone()
     return user
 
-def authenticate_user(username: str, password: str):
 
+def authenticate_user(username: str, password: str):
     conn = create_connection()
     create_user_table(conn)
     user = get_user(conn, username, password)
@@ -117,9 +119,6 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-
-
 
 
 @app.post("/signup")
@@ -155,7 +154,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         raise credentials_exception
     conn = create_connection()
     create_user_table(conn)
-    userFroDb = get_user(conn,username=token_data.username)
+    userFroDb = get_user(conn, username=token_data.username)
     user = User()
     user.username = userFroDb[1]
     user.password = userFroDb[2]
@@ -165,13 +164,13 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     return user
 
 
-
 async def get_current_active_user(
         current_user: Annotated[User, Depends(get_current_user)]
 ):
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(
@@ -189,6 +188,7 @@ async def login_for_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 # Define a function to create database connection
 def create_connection():
@@ -237,6 +237,7 @@ def create_data_table(conn):
     except sqlite3.Error as e:
         print(e)
 
+
 # Define a function to insert a user into the table
 def insert_user(conn, username, password):
     try:
@@ -246,13 +247,16 @@ def insert_user(conn, username, password):
     except sqlite3.Error as e:
         print(e)
 
+
 def insert_patient(conn, patient_id, patient_name, doctor):
     try:
-        conn.execute(f"INSERT INTO data (patient_id, patient_name, doctor) VALUES ('{patient_id}', '{patient_name}', '{doctor}');")
+        conn.execute(
+            f"INSERT INTO data (patient_id, patient_name, doctor) VALUES ('{patient_id}', '{patient_name}', '{doctor}');")
         conn.commit()
         print(f"Patient {patient_id} inserted successfully")
     except sqlite3.Error as e:
         print(e)
+
 
 # Define a function to authenticate user
 
@@ -383,7 +387,9 @@ def main_page():
     </html>
     """
 
+
 DATABASE_URL = "pie_chart.db"
+
 
 def create_segments_table(conn):
     try:
@@ -394,7 +400,9 @@ def create_segments_table(conn):
         print("Segments table created successfully")
     except sqlite3.Error as e:
         print(e)
-#create toy database
+
+
+# create toy database
 def create_sample_data(conn):
     sample_data = [
         {"label": "Red", "value": 100},
@@ -414,14 +422,17 @@ def create_sample_data(conn):
 
     conn.commit()
 
+
 def get_segments(conn):
     cur = conn.cursor()
     cur.execute("SELECT label, value FROM segments")
     return cur.fetchall()
 
+
 conn = sqlite3.connect(DATABASE_URL)
 create_segments_table(conn)
 create_sample_data(conn)
+
 
 @app.get("/visualize", response_class=HTMLResponse)
 async def pie_chart(request: Request):
@@ -442,8 +453,8 @@ async def pie_chart(request: Request):
 
 
 # df = pd.read_csv('inSightDataCR_May2020_Koc.csv')
-df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset'], date_parser=lambda x: pd.to_datetime(x, format='%m/%d/%y'))
-
+df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset'],
+                 date_parser=lambda x: pd.to_datetime(x, format='%m/%d/%y'))
 
 
 # PATIENT STATUS
@@ -471,7 +482,7 @@ async def get_active_patients_by_gender():
 async def get_patients_by_age_group():
     df['Age'] = df['Age'].fillna(df['Age'].mean())
     bins = [0, 18, 30, 40, 50, 60, 70, 120]
-    labels = ['<18', '18-29', '30-39', '40-49', '50-59', '60-69', '70+']
+    labels = ['<18', '18-29', '30-39', '40-49', '50-59', '60-69', '70>']
     df['age_group'] = pd.cut(df['Age'], bins=bins, labels=labels)
     patients_by_age_group = df.groupby('age_group')['id_patient'].nunique().to_dict()
     return {"Patients categorised by Age": patients_by_age_group}
@@ -587,3 +598,54 @@ async def get_wound_locations():
     wound_locations = pd.concat([df_nonull.groupby('id_wound')['primary_location'].first(), df_nonull.groupby
     ('id_wound')['secondary_location'].first()]).value_counts().to_dict()
     return {"wound_locations": wound_locations}
+
+
+@app.get("/export_data/{endpoint_name}")
+async def export_data(endpoint_name: str):
+    """
+        This endpoint dynamically exports data corresponding to any defined endpoint in CSV format.
+
+        It accepts the name of an existing endpoint as a parameter. The function associated with the given endpoint
+        is retrieved and executed to obtain the related data. This data is then converted into CSV format
+        and returned as a downloadable file. If the given endpoint name is not associated with any defined function,
+        the function returns an error message.
+
+        Parameters:
+        endpoint_name (str): The name of the endpoint whose data is to be exported.
+
+        Returns:
+        csv_data (str): The requested data in CSV format or an error message if the endpoint name is invalid.
+    """
+    # Fetch the function from globals
+    func = globals().get(endpoint_name)
+
+    # If no function was found for the given endpoint name, return an error
+    if not func:
+        raise HTTPException(status_code=400, detail="Invalid endpoint name")
+
+    # Call the function to get the data
+    data = await func()
+
+    # If the function returns an integer, create a dictionary with appropriate keys
+    if isinstance(data, int):
+        data = {"total_count": [data]}
+
+    elif isinstance(data, dict):
+        for key in data:
+            if isinstance(data[key], dict):
+                data = data[key]
+                break
+
+    try:
+        # Convert the data to a DataFrame
+        data_df = pd.DataFrame(list(data.items()), columns=["Key", "Value"])
+
+        # Save the DataFrame to a CSV file
+        csv_file_path = f"{endpoint_name}_data.csv"
+        data_df.to_csv(csv_file_path, index=False)
+
+    except ValueError:
+        raise HTTPException(status_code=500, detail="Unable to convert data to a DataFrame")
+
+    # Return the CSV file as a response
+    return FileResponse(path=csv_file_path, filename=f"{endpoint_name}_data.csv", media_type="text/csv")
