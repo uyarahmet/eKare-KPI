@@ -7,13 +7,13 @@ from matplotlib import pyplot as plt
 import pandas
 
 from datetime import datetime, timedelta
-from typing import Annotated, Union
+from typing import Annotated, Union, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 from fastapi.templating import Jinja2Templates
 import json
@@ -452,33 +452,172 @@ async def pie_chart(request: Request):
     return templates.TemplateResponse("chart.html", {"request": request, "chart_data": json.dumps(chart_data)})
 
 
-# df = pd.read_csv('inSightDataCR_May2020_Koc.csv')
-df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset'],
-                 date_parser=lambda x: pd.to_datetime(x, format='%m/%d/%y'))
+class PatientData(BaseModel):
+    group_name: str
+    account_name: str
+    site_name: str
+    id_patient: Optional[int]
+    gender: str
+    is_enabled: bool
+    Age: Optional[int]
+    id_wound: Optional[int]
+    onset: str
+    type: str
+    secondary_type: str
+    primary_location: str
+    secondary_location: str
+    is_active: bool
+    status: str
+    is_deleted: bool
+    id_measurement: Optional[int]
+    Wound_id_wound: Optional[int]
+    uid: str
+    avg_depth: float
+    maximum_depth: float
+    maximum_width: float
+    maximum_length: float
+    perimeter: float
+    area: float
+    volume: float
+    date: str
+    granulation: float
+    slough: float
+    eschar: float
+    taken_with_sensor: bool
+    quality_index: float
+    source: str
+    device: str
+    path: str
+
+    @validator('onset', 'date')
+    def validate_dates(cls, value):
+        try:
+            if ":" in value:  # it's a full datetime
+                datetime.strptime(value, '%Y-%m-%d %H:%M')
+            else:  # it's just a date
+                datetime.strptime(value, '%Y-%m-%d')
+            return value
+        except ValueError:
+            raise ValueError("Invalid datetime format. Expected YYYY-MM-DD or YYYY-MM-DD HH:MM")
+
+
+"""
+Methods used to preprocess the inital db imported and the basis db structure is formed which will be maintained by the 
+data updating methods. 
+def custom_date_parser(x):
+    try:
+        return pd.to_datetime(pd.to_datetime(x, format='%m/%d/%y %H:%M').strftime('%Y-%m-%d %H:%M'))
+    except ValueError:
+        return pd.to_datetime(pd.to_datetime(x, format='%m/%d/%y').strftime('%Y-%m-%d'))
+
+
+# Load data
+df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset', 'date'], date_parser=custom_date_parser)
+df = df.drop(columns=['Unnamed: 0'])
+
+# Convert booleans
+bool_cols = ['is_enabled', 'is_active', 'is_deleted', 'taken_with_sensor']
+df[bool_cols] = df[bool_cols].astype('boolean')
+
+# Convert integers
+int_cols = ['id_patient', 'Age', 'id_wound', 'primary_location', 'secondary_location', 'id_measurement',
+            'Wound_id_wound']
+df[int_cols] = df[int_cols].astype('Int64')
+
+# Convert floats
+float_cols = ['avg_depth', 'maximum_depth', 'maximum_width', 'maximum_length', 'perimeter', 'area', 'volume',
+              'quality_index', 'granulation', 'slough', 'eschar']
+df[float_cols] = df[float_cols].astype('float')
+
+# Convert strings
+str_cols = ['group_name', 'account_name', 'site_name', 'gender', 'type', 'secondary_type', 'status', 'uid',
+            'source', 'device', 'path']
+df[str_cols] = df[str_cols].astype('str')
+"""
+df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset', 'date'])
+
+
+@app.post("/add_entry")
+async def add_entry(entry: PatientData):
+    """
+    Adds a new patient entry to the data.
+
+    Args:
+        entry: The patient data to add.
+
+    Returns:
+        A dictionary with a detail of the operation status.
+    """
+
+    # Convert the patient data to a dictionary
+    entry_dict = entry.dict()
+
+    # Check if the patient ID is a positive number
+    if entry_dict['id_patient'] <= 0:
+        raise HTTPException(status_code=422, detail="Invalid id_patient. Please enter a value greater than 0.")
+
+    # Check if the age is a valid number between 0 and 120
+    if entry_dict['age'] < 0 or entry_dict['age'] > 120:
+        raise HTTPException(status_code=422, detail="Invalid age. Please enter a value between 0 and 120.")
+
+    # Check if the gender is either 'M' or 'F'
+    if entry_dict['gender'] not in ['M', 'F']:
+        raise HTTPException(status_code=422, detail="Invalid gender. Please enter 'M' or 'F'.")
+
+    # Check if the status is either 'active', 'healed', or 'closed'
+    if entry_dict['status'] not in ['active', 'healed', 'closed']:
+        raise HTTPException(status_code=422, detail="Invalid status. Please enter 'active', 'healed', or 'closed'.")
+
+    # Check if the is_deleted, is_active, and is_enabled fields are boolean values
+    if not isinstance(entry_dict['is_deleted'], bool):
+        raise HTTPException(status_code=422, detail="Invalid is_deleted. Please enter a boolean value (True/False).")
+
+    if not isinstance(entry_dict['is_active'], bool):
+        raise HTTPException(status_code=422, detail="Invalid is_active. Please enter a boolean value (True/False).")
+
+    if not isinstance(entry_dict['is_enabled'], bool):
+        raise HTTPException(status_code=422, detail="Invalid is_enabled. Please enter a boolean value (True/False).")
+
+    # Convert the onset and date fields to datetime objects
+    for field in ['onset', 'date']:
+        try:
+            if ":" in entry_dict[field]:  # it's a full datetime
+                entry_dict[field] = pd.to_datetime(entry_dict[field], format='%Y-%m-%d %H:%M')
+            else:  # it's just a date
+                entry_dict[field] = pd.to_datetime(entry_dict[field], format='%Y-%m-%d')
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Invalid {field} format. Please enter in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM' format.")
+
+    # Add the new patient data to the dataframe and save the dataframe to a CSV file
+    df.loc[len(df)] = entry_dict
+    df.to_csv('inSightDataCR_May2020_Koc.csv', index=False)
+
+    # Return a success message
+    return {"detail": "Entry added successfully"}
 
 
 # PATIENT STATUS
-@app.get("/total_patients") # Returns total unique patients in the dataset
+@app.get("/total_patients")  # Returns total unique patients in the dataset
 async def get_total_patients():
     total_patients = df['id_patient'].nunique()
     return {"total_patients": total_patients}
 
 
-@app.get("/patients_by_gender") # Returns count of patients grouped by gender
+@app.get("/patients_by_gender")  # Returns count of patients grouped by gender
 async def get_patients_by_gender():
     patients_by_gender = df.groupby('gender')['id_patient'].nunique().to_dict()
     return {"patients_by_gender": patients_by_gender}
 
 
-@app.get("/active_patients_by_gender") # Returns count of active patients grouped by gender
+@app.get("/active_patients_by_gender")  # Returns count of active patients grouped by gender
 async def get_active_patients_by_gender():
     df['gender'] = df['gender'].fillna('Unknown')
     df['is_enabled'] = df['is_enabled'].fillna(False).astype(bool)
-    active_patients_by_gender = df[df['is_enabled'] == True].groupby('gender')['id_patient'].nunique().to_dict()
+    active_patients_by_gender = df[df['is_enabled']: True].groupby('gender')['id_patient'].nunique().to_dict()
     return {"Active patients categorised by Gender": active_patients_by_gender}
 
 
-@app.get("/patients_by_age_group") # Returns count of patients grouped by age groups
+@app.get("/patients_by_age_group")  # Returns count of patients grouped by age groups
 async def get_patients_by_age_group():
     df['Age'] = df['Age'].fillna(df['Age'].mean())
     bins = [0, 18, 30, 40, 50, 60, 70, 120]
@@ -488,7 +627,7 @@ async def get_patients_by_age_group():
     return {"Patients categorised by Age": patients_by_age_group}
 
 
-@app.get("/new_patients_by_month/{year}/{month}") # Returns new patients count by month for a given 6-month period
+@app.get("/new_patients_by_month/{year}/{month}")  # Returns new patients count by month for a given 6-month period
 # ending at {year}-{month}
 async def get_new_patients_by_month(year: int, month: int):
     df_noNull = df.dropna(subset=['onset'])
@@ -502,34 +641,34 @@ async def get_new_patients_by_month(year: int, month: int):
     return {message: new_patients_by_month.to_dict(), "total_new_patients": total_new_patients}
 
 
-@app.get("/patients_by_site") # Returns count of patients grouped by site name
+@app.get("/patients_by_site")  # Returns count of patients grouped by site name
 async def get_patients_by_site():
     patients_by_site = df.groupby('site_name')['id_patient'].nunique().to_dict()
     return {"patients_by_site": patients_by_site}
 
 
-@app.get("/common_wound_types") # Returns common wound types in the dataset
+@app.get("/common_wound_types")  # Returns common wound types in the dataset
 async def get_common_wound_types():
     df_nonull = df.dropna(subset=['type'])
     common_wound_types = df_nonull.groupby('id_wound')['type'].first().value_counts().to_dict()
     return {"common_wound_types": common_wound_types}
 
 
-@app.get("/common_secondary_types") # Returns common secondary wound types in the dataset
+@app.get("/common_secondary_types")  # Returns common secondary wound types in the dataset
 async def get_common_secondary_types():
     df_nonull = df.dropna(subset=['secondary_type'])
     common_secondary_types = df_nonull.groupby('id_wound')['secondary_type'].first().value_counts().to_dict()
     return {"common_secondary_types": common_secondary_types}
 
 
-@app.get("/common_primary_locations") # Returns common primary wound locations in the dataset
+@app.get("/common_primary_locations")  # Returns common primary wound locations in the dataset
 async def get_common_primary_locations():
     df_nonull = df.dropna(subset=['primary_location'])
     common_primary_locations = df_nonull.groupby('id_wound')['primary_location'].first().value_counts().to_dict()
     return {"common_primary_locations": common_primary_locations}
 
 
-@app.get("/common_secondary_locations") # Returns common secondary wound locations in the dataset
+@app.get("/common_secondary_locations")  # Returns common secondary wound locations in the dataset
 async def get_common_secondary_locations():
     df_nonull = df.dropna(subset=['secondary_location'])
     common_secondary_locations = df_nonull.groupby('id_wound')['secondary_location'].first().value_counts().to_dict()
@@ -537,13 +676,13 @@ async def get_common_secondary_locations():
 
 
 # WOUND STATUS
-@app.get("/total_wounds") # Returns total unique wounds in the dataset
+@app.get("/total_wounds")  # Returns total unique wounds in the dataset
 async def get_total_wounds():
     total_wounds = df['id_wound'].nunique()
     return {"total_wounds": total_wounds}
 
 
-@app.get("/new_wounds_by_month/{year}/{month}") # Returns new wounds count by month for a given 6-month period
+@app.get("/new_wounds_by_month/{year}/{month}")  # Returns new wounds count by month for a given 6-month period
 # ending at {year}-{month}
 async def get_new_wounds_by_month(year: int, month: int):
     df_noNull = df.dropna(subset=['onset'])
@@ -557,7 +696,7 @@ async def get_new_wounds_by_month(year: int, month: int):
     return {message: new_wounds_by_month.to_dict(), "total_new_wounds": total_new_wounds}
 
 
-@app.get("/total_measurements") # Returns the total unique measurements in the dataset
+@app.get("/total_measurements")  # Returns the total unique measurements in the dataset
 async def get_total_measurements():
     total_measurements = df['id_measurement'].nunique()
     return {"total_measurements": total_measurements}
@@ -570,21 +709,22 @@ async def get_new_measurements_by_month(year: int, month: int):
     end_date = pd.to_datetime(f"{year}-{month}-01")
     start_date = end_date - pd.DateOffset(months=6)
     new_measurements = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
-    new_measurements_by_month = new_measurements.groupby(new_measurements['onset'].dt.to_period("M"))['id_measurement'].nunique()
+    new_measurements_by_month = new_measurements.groupby(new_measurements['onset'].dt.to_period("M"))[
+        'id_measurement'].nunique()
     new_measurements_by_month.index = new_measurements_by_month.index.strftime('%Y-%m')
     total_new_measurements = new_measurements['id_measurement'].nunique()
     message = f"New measurements recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
     return {message: new_measurements_by_month.to_dict(), "total_new_measurements": total_new_measurements}
 
 
-@app.get("/wound_status") # Returns the status of each wound in the dataset
+@app.get("/wound_status")  # Returns the status of each wound in the dataset
 async def get_wound_status():
     df_nonull = df.dropna(subset=['status'])
     wound_status = df_nonull.groupby('id_wound')['status'].first().value_counts().to_dict()
     return {"wound_status": wound_status}
 
 
-@app.get("/wound_types") # Returns wound types both primary and secondary
+@app.get("/wound_types")  # Returns wound types both primary and secondary
 async def get_wound_types():
     df_nonull = df.dropna(subset=['type', 'secondary_type'])
     wound_types = pd.concat([df_nonull.groupby('id_wound')['type'].first(), df_nonull.groupby('id_wound')
@@ -592,7 +732,7 @@ async def get_wound_types():
     return {"wound_types": wound_types}
 
 
-@app.get("/wound_locations") # Returns wound locations both primary and secondary
+@app.get("/wound_locations")  # Returns wound locations both primary and secondary
 async def get_wound_locations():
     df_nonull = df.dropna(subset=['primary_location', 'secondary_location'])
     wound_locations = pd.concat([df_nonull.groupby('id_wound')['primary_location'].first(), df_nonull.groupby
