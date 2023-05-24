@@ -5,6 +5,7 @@ import sqlite3
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas
+import prompt
 
 from datetime import datetime, timedelta
 from typing import Annotated, Union, Optional
@@ -789,3 +790,46 @@ async def export_data(endpoint_name: str):
 
     # Return the CSV file as a response
     return FileResponse(path=csv_file_path, filename=f"{endpoint_name}_data.csv", media_type="text/csv")
+@app.get("/query_search")
+async def perform_query_search(query: str, csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
+    try:
+        # Perform Query Search By NL
+        query_result = prompt.performQuerySearchByNL(query, csv_file_path)
+
+        return {"query_result": query_result}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/heatmap_analysis")
+async def analyze_heatmap(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
+    try:
+        # Analyse Heatmap
+        heatmap_analysis = prompt.analyseHeatmap(csv_file_path)
+
+        return {"heatmap_analysis": heatmap_analysis}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/summary_analysis")
+async def analyze_summary(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
+    try:
+        # Analyse Summary
+        summary_analysis = prompt.analyseSummary(csv_file_path)
+
+        return {"summary_analysis": summary_analysis}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/stats_analysis")
+async def analyze_stats(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
+    try:
+        # Analyse Stats
+        stats_analysis = prompt.analyseStats(csv_file_path)
+
+        return {"stats_analysis": stats_analysis}
+
+    except Exception as e:
+        return {"error": str(e)}
