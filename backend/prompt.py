@@ -1,5 +1,6 @@
 import openai
 import os
+import matplotlib.pyplot as plt
 
 from fastapi.responses import HTMLResponse
 import sqlite3
@@ -23,8 +24,16 @@ from sklearn.cluster import KMeans
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import dataScience
 
-openai.api_key = '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'
+# Load the CSV file
+data = pd.read_csv('inSightDataCR_May2020_Koc.csv')
+
+# Print the names of the features
+print(data.columns.tolist())
+
+openai.api_key = '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'
 
 def get_completion(prompt, model="gpt-3.5-turbo"):
     messages = [{"role": "user", "content": prompt}]
@@ -122,16 +131,8 @@ heatmap = '{"correlations":{"Age":{"Age":1.0,"avg_depth":0.15247542489518348,"ma
 array = [1,2,3,4,5,6]
 pca  = principal_component_analysis()
 
-def extract_column_names(csv_file):
-    with open(csv_file, 'r') as file:
-        csv_reader = csv.reader(file)
-        column_names = next(csv_reader)
-        return column_names
 
-# Example usage
-csv_file_path = 'inSightDataCR_May2020_Koc.csv'
-column_names = extract_column_names(csv_file_path)
-print(column_names)
+csv_file_path = '<inSightDataCR_May2020_Koc.csv>'
 
 
 query  = "select the female patients that is older than 35 years"
@@ -195,10 +196,47 @@ def analyseStats(csv_file_path):
     return get_completion(prompt)
 
 
+def analyseMultipleLinearRegression(csv_file_path, features, label):
+
+    prompt = f"""
+    I have applied multiple linear regression to my dataset\
+    Features are delimited by triple quotes and label is delimited by angle brackets\
+    Analyse the multiple linear regression results delimited by triple backticks\
+    Explain the results and make informative comments about results\
+    Then, give some possible bussiness advices to a wound care company based on your results\
+    Also start to a new line after writing 15 words\
+
+    Use the following format:
+    Analyse: <Your analysis from data multiple linear regression results>
+    Bussiness Advices: <Give bussiness advices based on your analysis>
+        \"\"\"{features}\"\"\"
+        <{label}>
+     ```{dataScience.analyse_ultra(csv_file_path, features, label)}```  """
+
+    return get_completion(prompt)
+
+label = ['area']
+features = ['eschar', 'granulation']
+
+def visualize_pca_results():
+    # Call the pca function
+    result = principal_component_analysis()
+
+    # Convert the result back to DataFrame
+    df_pca = pd.DataFrame(result["principal_components"])
+
+    # Visualize the results
+    plt.figure(figsize=(8,6))
+    plt.scatter(df_pca['principal component 1'], df_pca['principal component 2'], edgecolor='k')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.title('Principal Component Analysis (2D)')
+    plt.grid(True)
+    plt.show()
+
+visualize_pca_results()
 
 
-print(analyseHeatmap(csv_file_path))
+#print(analyseMultipleLinearRegression('inSightDataCR_May2020_Koc.csv', features, label))
 
-print(analyseSummary(csv_file_path))
-
-#print(analyseStats(csv_file_path))
+#print(principal_component_analysis())
