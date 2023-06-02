@@ -5,8 +5,11 @@ import sqlite3
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas
+import csv
 import prompt
+import calendar
 
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Annotated, Union, Optional
 
@@ -191,11 +194,84 @@ async def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# Connect to the SQLite database
+conn = sqlite3.connect("databases/ekare.db")
+cursor = conn.cursor()
+
+# Create the necessary table if it doesn't exist
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS patient_data (
+        group_name TEXT,
+        account_name TEXT,
+        site_name TEXT,
+        id_patient INTEGER,
+        gender TEXT,
+        is_enabled INTEGER,
+        Age INTEGER,
+        id_wound INTEGER,
+        onset TEXT,
+        type TEXT,
+        secondary_type TEXT,
+        primary_location TEXT,
+        secondary_location TEXT,
+        is_active INTEGER,
+        status TEXT,
+        is_deleted INTEGER,
+        id_measurement INTEGER,
+        Wound_id_wound INTEGER,
+        uid TEXT,
+        avg_depth REAL,
+        maximum_depth REAL,
+        maximum_width REAL,
+        maximum_length REAL,
+        perimeter REAL,
+        area REAL,
+        volume REAL,
+        date TEXT,
+        granulation REAL,
+        slough REAL,
+        eschar REAL,
+        taken_with_sensor INTEGER,
+        quality_index REAL,
+        source TEXT,
+        device TEXT,
+        path TEXT
+    )
+    """
+)
+
+"""
+# Read the CSV file and insert data into the database
+with open("inSightDataCR_May2020_Koc.csv", newline="") as file:
+    csv_reader = csv.reader(file)
+    next(csv_reader)  # Skip the header row
+
+    # Insert each row of data into the database
+    for row in csv_reader:
+        cursor.execute(
+            '''
+            INSERT INTO patient_data
+            (group_name, account_name, site_name, id_patient, gender, is_enabled, Age, id_wound, onset, type, secondary_type,
+            primary_location, secondary_location, is_active, status, is_deleted, id_measurement, Wound_id_wound, uid, avg_depth,
+            maximum_depth, maximum_width, maximum_length, perimeter, area, volume, date, granulation, slough, eschar,
+            taken_with_sensor, quality_index, source, device, path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            row,
+        )
+
+# Commit the changes and close the connection
+conn.commit()
+conn.close()
+"""
+
+
 # Define a function to create database connection
 def create_connection():
     conn = None
     try:
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect('databases/users.db')
         print("Connected to SQLite database")
     except sqlite3.Error as e:
         print(e)
@@ -262,7 +338,7 @@ def insert_patient(conn, patient_id, patient_name, doctor):
 # Define a function to authenticate user
 
 
-# Define a route for the login page
+# Define a route for the login page (test endpoint for authorization functions)
 @app.get("/", response_class=HTMLResponse)
 def main_page():
     return """
@@ -457,11 +533,11 @@ class PatientData(BaseModel):
     group_name: str
     account_name: str
     site_name: str
-    id_patient: Optional[int]
+    id_patient: int
     gender: str
     is_enabled: bool
-    Age: Optional[int]
-    id_wound: Optional[int]
+    Age: int
+    id_wound: int
     onset: str
     type: str
     secondary_type: str
@@ -470,8 +546,8 @@ class PatientData(BaseModel):
     is_active: bool
     status: str
     is_deleted: bool
-    id_measurement: Optional[int]
-    Wound_id_wound: Optional[int]
+    id_measurement: int
+    Wound_id_wound: int
     uid: str
     avg_depth: float
     maximum_depth: float
@@ -489,17 +565,6 @@ class PatientData(BaseModel):
     source: str
     device: str
     path: str
-
-    @validator('onset', 'date')
-    def validate_dates(cls, value):
-        try:
-            if ":" in value:  # it's a full datetime
-                datetime.strptime(value, '%Y-%m-%d %H:%M')
-            else:  # it's just a date
-                datetime.strptime(value, '%Y-%m-%d')
-            return value
-        except ValueError:
-            raise ValueError("Invalid datetime format. Expected YYYY-MM-DD or YYYY-MM-DD HH:MM")
 
 
 """
@@ -549,6 +614,9 @@ async def add_entry(entry: PatientData):
     Returns:
         A dictionary with a detail of the operation status.
     """
+    # Create a database connection
+    conn = sqlite3.connect("databases/ekare.db")
+    cursor = conn.cursor()
 
     # Convert the patient data to a dictionary
     entry_dict = entry.dict()
@@ -558,7 +626,7 @@ async def add_entry(entry: PatientData):
         raise HTTPException(status_code=422, detail="Invalid id_patient. Please enter a value greater than 0.")
 
     # Check if the age is a valid number between 0 and 120
-    if entry_dict['age'] < 0 or entry_dict['age'] > 120:
+    if entry_dict['Age'] < 0 or entry_dict['Age'] > 120:
         raise HTTPException(status_code=422, detail="Invalid age. Please enter a value between 0 and 120.")
 
     # Check if the gender is either 'M' or 'F'
@@ -576,37 +644,40 @@ async def add_entry(entry: PatientData):
     if not isinstance(entry_dict['is_active'], bool):
         raise HTTPException(status_code=422, detail="Invalid is_active. Please enter a boolean value (True/False).")
 
-    if not isinstance(entry_dict['is_enabled'], bool):
-        raise HTTPException(status_code=422, detail="Invalid is_enabled. Please enter a boolean value (True/False).")
 
-    # Convert the onset and date fields to datetime objects
-    for field in ['onset', 'date']:
-        try:
-            if ":" in entry_dict[field]:  # it's a full datetime
-                entry_dict[field] = pd.to_datetime(entry_dict[field], format='%Y-%m-%d %H:%M')
-            else:  # it's just a date
-                entry_dict[field] = pd.to_datetime(entry_dict[field], format='%Y-%m-%d')
-        except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Invalid {field} format. Please enter in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM' format.")
-
-    # Add the new patient data to the dataframe and save the dataframe to a CSV file
-    df.loc[len(df)] = entry_dict
-    df.to_csv('inSightDataCR_May2020_Koc.csv', index=False)
-
-    # Return a success message
-    return {"detail": "Entry added successfully"}
+from fastapi import Query
 
 
-# PATIENT STATUS
+@app.get("/query")
+async def execute_query(query: str = Query(...)):
+    conn = sqlite3.connect("databases/ekare.db")
+    cursor = conn.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return {"query_result": result}
+
+
 @app.get("/total_patients")  # Returns total unique patients in the dataset
 async def get_total_patients():
-    total_patients = df['id_patient'].nunique()
+    conn = sqlite3.connect("databases/ekare.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(DISTINCT id_patient) FROM patient_data")
+    total_patients = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
     return {"total_patients": total_patients}
 
 
 @app.get("/patients_by_gender")  # Returns count of patients grouped by gender
 async def get_patients_by_gender():
-    patients_by_gender = df.groupby('gender')['id_patient'].nunique().to_dict()
+    conn = sqlite3.connect("databases/ekare.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT gender, COUNT(DISTINCT id_patient) FROM patient_data GROUP BY gender")
+    patients_by_gender = {row[0]: row[1] for row in cursor.fetchall()}
+    cursor.close()
+    conn.close()
     return {"patients_by_gender": patients_by_gender}
 
 
@@ -628,18 +699,24 @@ async def get_patients_by_age_group():
     return {"Patients categorised by Age": patients_by_age_group}
 
 
-@app.get("/new_patients_by_month/{year}/{month}")  # Returns new patients count by month for a given 6-month period
-# ending at {year}-{month}
-async def get_new_patients_by_month(year: int, month: int):
-    df_noNull = df.dropna(subset=['onset'])
-    end_date = pd.to_datetime(f"{year}-{month}-01")
-    start_date = end_date - pd.DateOffset(months=6)
-    new_patients = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
-    new_patients_by_month = new_patients.groupby(new_patients['onset'].dt.to_period("M"))['id_patient'].nunique()
-    new_patients_by_month.index = new_patients_by_month.index.strftime('%Y-%m')
-    total_new_patients = new_patients['id_patient'].nunique()
-    message = f"New patients recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
-    return {message: new_patients_by_month.to_dict(), "total_new_patients": total_new_patients}
+@app.get("/new_patients_by_year/{year}")
+async def get_new_patients_by_year(year: int):
+    filename = "inSightDataCR_May2020_Koc.csv"
+
+    new_patients_by_year = {}
+
+    with open(filename, "r") as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            onset = row["onset"]
+            if onset.startswith(str(year)):
+                month = int(onset[5:7])
+                month_name = calendar.month_name[month]
+                if month_name not in new_patients_by_year:
+                    new_patients_by_year[month_name] = 0
+                new_patients_by_year[month_name] += 1
+
+    return {"new_patients_by_year": new_patients_by_year}
 
 
 @app.get("/patients_by_site")  # Returns count of patients grouped by site name
@@ -683,18 +760,27 @@ async def get_total_wounds():
     return {"total_wounds": total_wounds}
 
 
-@app.get("/new_wounds_by_month/{year}/{month}")  # Returns new wounds count by month for a given 6-month period
-# ending at {year}-{month}
-async def get_new_wounds_by_month(year: int, month: int):
-    df_noNull = df.dropna(subset=['onset'])
-    end_date = pd.to_datetime(f"{year}-{month}-01")
-    start_date = end_date - pd.DateOffset(months=6)
-    new_wounds = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
-    new_wounds_by_month = new_wounds.groupby(new_wounds['onset'].dt.to_period("M"))['id_wound'].nunique()
-    new_wounds_by_month.index = new_wounds_by_month.index.strftime('%Y-%m')
+@app.get("/new_wounds_by_year/{year}")
+async def get_new_wounds_by_year(year: int):
+    filename = "inSightDataCR_May2020_Koc.csv"
+
+    df = pd.read_csv(filename)
+
+    df['onset'] = pd.to_datetime(df['onset'])
+
+    start_date = pd.to_datetime(f"{year}-01-01")
+    end_date = start_date + pd.DateOffset(years=1)
+
+    new_wounds = df[(df['onset'] >= start_date) & (df['onset'] < end_date)]
+    new_wounds_by_month = new_wounds.groupby(new_wounds['onset'].dt.month)['id_wound'].nunique()
+
+    month_names = [calendar.month_name[i] for i in new_wounds_by_month.index]
+
+    new_wounds_by_month_dict = dict(zip(month_names, new_wounds_by_month))
+
     total_new_wounds = new_wounds['id_wound'].nunique()
-    message = f"New wounds recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
-    return {message: new_wounds_by_month.to_dict(), "total_new_wounds": total_new_wounds}
+
+    return {"new_wounds_by_year": new_wounds_by_month_dict, "total_new_wounds": total_new_wounds}
 
 
 @app.get("/total_measurements")  # Returns the total unique measurements in the dataset
@@ -703,19 +789,27 @@ async def get_total_measurements():
     return {"total_measurements": total_measurements}
 
 
-@app.get("/new_measurements_by_month/{year}/{month}")  # Returns new measurements count by month for a given
-# 6-month period ending at {year}-{month}
-async def get_new_measurements_by_month(year: int, month: int):
-    df_noNull = df.dropna(subset=['date'])
-    end_date = pd.to_datetime(f"{year}-{month}-01")
-    start_date = end_date - pd.DateOffset(months=6)
-    new_measurements = df_noNull[(df_noNull['onset'] >= start_date) & (df_noNull['onset'] < end_date)]
-    new_measurements_by_month = new_measurements.groupby(new_measurements['onset'].dt.to_period("M"))[
-        'id_measurement'].nunique()
-    new_measurements_by_month.index = new_measurements_by_month.index.strftime('%Y-%m')
-    total_new_measurements = new_measurements['id_measurement'].nunique()
-    message = f"New measurements recorded between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}"
-    return {message: new_measurements_by_month.to_dict(), "total_new_measurements": total_new_measurements}
+@app.get("/new_measurements_by_year/{year}")
+async def get_new_measurements_by_year(year: int):
+    filename = "inSightDataCR_May2020_Koc.csv"
+
+    df = pd.read_csv(filename)
+
+    df['date'] = pd.to_datetime(df['date'])
+
+    start_date = pd.to_datetime(f"{year}-01-01")
+    end_date = start_date + pd.DateOffset(years=1)
+
+    new_measurements = df[(df['date'] >= start_date) & (df['date'] < end_date)]
+    new_measurements_by_month = new_measurements.groupby(new_measurements['date'].dt.month)['id_measurement'].nunique()
+
+    month_names = [calendar.month_name[i] for i in new_measurements_by_month.index]
+
+    new_measurements_by_month_dict = dict(zip(month_names, new_measurements_by_month))
+
+    #total_new_measurements = new_measurements['id_measurement'].nunique()
+
+    return {"new_measurements_by_year": new_measurements_by_month_dict}
 
 
 @app.get("/wound_status")  # Returns the status of each wound in the dataset
@@ -790,6 +884,8 @@ async def export_data(endpoint_name: str):
 
     # Return the CSV file as a response
     return FileResponse(path=csv_file_path, filename=f"{endpoint_name}_data.csv", media_type="text/csv")
+
+
 @app.get("/query_search")
 async def perform_query_search(query: str, csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
     try:
@@ -800,6 +896,7 @@ async def perform_query_search(query: str, csv_file_path: str = "inSightDataCR_M
 
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/heatmap_analysis")
 async def analyze_heatmap(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
@@ -812,6 +909,7 @@ async def analyze_heatmap(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
     except Exception as e:
         return {"error": str(e)}
 
+
 @app.get("/summary_analysis")
 async def analyze_summary(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
     try:
@@ -822,6 +920,7 @@ async def analyze_summary(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
 
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/stats_analysis")
 async def analyze_stats(csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):
