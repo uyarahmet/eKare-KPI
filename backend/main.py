@@ -1,5 +1,8 @@
+import os
+
 import pandas as pd
 from fastapi.openapi.models import Response
+from fastapi.params import File
 from fastapi.responses import HTMLResponse
 import sqlite3
 import numpy as np
@@ -13,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Annotated, Union, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status, Form, Request
+from fastapi import Depends, FastAPI, HTTPException, status, Form, Request, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -260,11 +263,10 @@ with open("inSightDataCR_May2020_Koc.csv", newline="") as file:
             ''',
             row,
         )
-
+"""
 # Commit the changes and close the connection
 conn.commit()
 conn.close()
-"""
 
 
 # Define a function to create database connection
@@ -460,6 +462,14 @@ def main_page():
                     <button type="submit" class="signupbtn">Sign Up</button>
                 </div>
             </form>
+            <form method="get" action="/update_dataset_page">
+                <div class="container">
+                    <h2>Update Dataset</h2>
+                    <form method="post" action="/update_dataset_page">
+                        <input type="submit" value="Go to Update Dataset Page" class="updatebtn">
+                    </form>
+                </div>
+            </form>
         </body>
     </html>
     """
@@ -567,19 +577,32 @@ class PatientData(BaseModel):
     path: str
 
 
+@app.get("/update_dataset_page", response_class=HTMLResponse)
+async def update_dataset_page(request: Request):
+    return templates.TemplateResponse("update_dataset.html", {"request": request})
+
+
+def custom_date_parser(date_str: Optional[str]) -> Optional[datetime.date]:
+    if date_str is not None and not date_str.startswith("group_name"):
+        date_str = date_str.strip()
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
+    return None
+
+
 """
-Methods used to preprocess the inital db imported and the basis db structure is formed which will be maintained by the 
-data updating methods. 
+# Methods used to preprocess the inital db imported and the basis db structure is formed which will be maintained by the
+# data updating methods.
 def custom_date_parser(x):
     try:
         return pd.to_datetime(pd.to_datetime(x, format='%m/%d/%y %H:%M').strftime('%Y-%m-%d %H:%M'))
     except ValueError:
         return pd.to_datetime(pd.to_datetime(x, format='%m/%d/%y').strftime('%Y-%m-%d'))
 
-
 # Load data
 df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset', 'date'], date_parser=custom_date_parser)
-df = df.drop(columns=['Unnamed: 0'])
 
 # Convert booleans
 bool_cols = ['is_enabled', 'is_active', 'is_deleted', 'taken_with_sensor']
@@ -601,6 +624,29 @@ str_cols = ['group_name', 'account_name', 'site_name', 'gender', 'type', 'second
 df[str_cols] = df[str_cols].astype('str')
 """
 df = pd.read_csv('inSightDataCR_May2020_Koc.csv', parse_dates=['onset', 'date'])
+
+
+@app.post("/update_dataset")
+async def update_dataset(file: UploadFile = File(...)):
+    # Save the uploaded CSV file to disk
+    with open("temp/sample.csv", "wb") as f:
+        f.write(file.file.read())
+
+    # Load the uploaded CSV file into a DataFrame
+    df_new = pd.read_csv("temp/sample.csv", parse_dates=["onset", "date"], date_parser=custom_date_parser)
+
+    # Create a connection to the database
+    conn = sqlite3.connect("databases/ekare.db")
+    cursor = conn.cursor()
+
+    # Insert the new data into the patient_data table
+    df_new.to_sql("patient_data", conn, if_exists="append", index=False)
+
+    # Close the database connection
+    cursor.close()
+    conn.close()
+
+    return {"message": "Dataset updated successfully."}
 
 
 @app.post("/add_entry")
