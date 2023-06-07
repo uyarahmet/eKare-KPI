@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Update Dataset</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Container styles */
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        /* Heading styles */
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        /* Form styles */
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Label styles */
+        label {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        /* Input styles */
+        input[type="text"],
+        input[type="password"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        /* Button styles */
+        button[type="submit"] {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        /* Error message styles */
+        .error {
+            color: #ff0000;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Update Dataset</h1>
+        <div class="upload-form">
+            <h2>Upload CSV File</h2>
+            <form method="post" enctype="multipart/form-data" action="/update_dataset">
+                <input type="file" id="csv_file" name="file" accept=".csv">
+                <button type="submit">Update Dataset</button>
+            </form>
+        </div>
+        <div class="entry-form">
+            <h2>Add Single Entry</h2>
+            <form method="post" action="/add_entry">
+                <label for="group_name">Group Name:</label>
+                <input type="text" id="group_name" name="group_name" required>
+                <label for="account_name">Account Name:</label>
+                <input type="text" id="account_name" name="account_name" required>
+                <label for="site_name">Site Name:</label>
+                <input type="text" id="site_name" name="site_name" required>
+                <label for="id_patient">Patient ID:</label>
+                <input type="number" id="id_patient" name="id_patient" required>
+                <label for="gender">Gender:</label>
+                <select id="gender" name="gender" required>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                </select>
+                <label for="is_enabled">Is Enabled:</label>
+                <input type="checkbox" id="is_enabled" name="is_enabled">
+                <label for="age">Age:</label>
+                <input type="number" id="age" name="age" required>
+                <label for="id_wound">Wound ID:</label>
+                <input type="number" id="id_wound" name="id_wound" required>
+                <label for="onset">Onset:</label>
+                <input type="date" id="onset" name="onset" required>
+                <label for="type">Type:</label>
+                <input type="text" id="type" name="type" required>
+                <label for="secondary_type">Secondary Type:</label>
+                <input type="text" id="secondary_type" name="secondary_type" required>
+                <label for="primary_location">Primary Location:</label>
+                <input type="text" id="primary_location" name="primary_location" required>
+                <label for="secondary_location">Secondary Location:</label>
+                <input type="text" id="secondary_location" name="secondary_location" required>
+                <label for="is_active">Is Active:</label>
+                <input type="checkbox" id="is_active" name="is_active">
+                <label for="status">Status:</label>
+                <select id="status" name="status" required>
+                    <option value="active">Active</option>
+                    <option value="healed">Healed</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <label for="is_deleted">Is Deleted:</label>
+                <input type="checkbox" id="is_deleted" name="is_deleted">
+                <label for="id_measurement">Measurement ID:</label>
+                <input type="number" id="id_measurement" name="id_measurement" required>
+                <label for="wound_id">Wound ID:</label>
+                <input type="number" id="wound_id" name="wound_id" required>
+                <label for="uid">UID:</label>
+                <input type="text" id="uid" name="uid" required>
+                <label for="avg_depth">Average Depth:</label>
+                <input type="number" id="avg_depth" name="avg_depth" step="0.01" required>
+                <label for="max_depth">Maximum Depth:</label>
+                <input type="number" id="max_depth" name="max_depth" step="0.01" required>
+                <label for="max_width">Maximum Width:</label>
+                <input type="number" id="max_width" name="max_width" step="0.01" required>
+                <label for="max_length">Maximum Length:</label>
+                <input type="number" id="max_length" name="max_length" step="0.01" required>
+                <label for="perimeter">Perimeter:</label>
+                <input type="number" id="perimeter" name="perimeter" step="0.01" required>
+                <label for="area">Area:</label>
+                <input type="number" id="area" name="area" step="0.01" required>
+                <label for="volume">Volume:</label>
+                <input type="number" id="volume" name="volume" step="0.01" required>
+                <label for="date">Date:</label>
+                <input type="date" id="date" name="date" required>
+                <label for="granulation">Granulation:</label>
+                <input type="number" id="granulation" name="granulation" step="0.01" required>
+                <label for="slough">Slough:</label>
+                <input type="number" id="slough" name="slough" step="0.01" required>
+                <label for="eschar">Eschar:</label>
+                <input type="number" id="eschar" name="eschar" step="0.01" required>
+                <label for="taken_with_sensor">Taken with Sensor:</label>
+                <input type="checkbox" id="taken_with_sensor" name="taken_with_sensor">
+                <label for="quality_index">Quality Index:</label>
+                <input type="number" id="quality_index" name="quality_index" step="0.01" required>
+                <label for="source">Source:</label>
+                <input type="text" id="source" name="source" required>
+                <label for="device">Device:</label>
+                <input type="text" id="device" name="device" required>
+                <label for="path">Path:</label>
+                <input type="text" id="path" name="path" required>
+                <button type="submit">Add Entry</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
