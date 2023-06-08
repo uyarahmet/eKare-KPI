@@ -1,26 +1,10 @@
+import numpy as np
 import openai
 import os
-import matplotlib.pyplot as plt
 
-from fastapi.responses import HTMLResponse
 import sqlite3
 import csv
 
-
-from datetime import datetime, timedelta
-from typing import Annotated, Union
-import numpy as np
-
-from fastapi import Depends, FastAPI, HTTPException, status, Form, Request
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
-import pandas as pd
-
-from fastapi.templating import Jinja2Templates
-import json
-from sklearn.cluster import KMeans
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -31,9 +15,9 @@ import dataScience
 data = pd.read_csv('inSightDataCR_May2020_Koc.csv')
 
 # Print the names of the features
-print(data.columns.tolist())
+#print(data.columns.tolist())
 
-openai.api_key = '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'
+openai.api_key = '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'
 
 def get_completion(prompt, model="gpt-3.5-turbo"):
     messages = [{"role": "user", "content": prompt}]
@@ -47,7 +31,7 @@ def get_completion(prompt, model="gpt-3.5-turbo"):
 
 def correlation_heatmap(csv_file_path):
     # Read the CSV file into a DataFrame
-    df = pd.read_csv(csv_file_path)
+    df = pd.read_csv('inSightDataCR_May2020_Koc.csv')
 
     # Select required columns
     columns_of_interest = ['Age', 'avg_depth', 'maximum_depth', 'maximum_width', 'maximum_length',
@@ -60,9 +44,32 @@ def correlation_heatmap(csv_file_path):
 
     # Calculate correlations
     correlations = df_clean.corr()
+    return correlations
 
 
-    return {"correlations": correlations}
+def correlation_heatmap_querybased(query):
+    # Create a connection to the SQLite database
+    conn = sqlite3.connect('ekare.db')
+
+    # Read data from the table into a DataFrame
+    df = pd.read_sql_query(query, conn)
+
+    # Select required columns
+    columns_of_interest = ['Age', 'avg_depth', 'maximum_depth', 'maximum_width', 'maximum_length',
+                           'perimeter', 'area', 'volume', 'granulation', 'slough', 'eschar', 'quality_index']
+    df_selected = df[columns_of_interest]
+
+    df_selected = df_selected.apply(pd.to_numeric, errors='coerce')
+
+    # Remove rows with missing values
+    df_clean = df_selected.dropna()
+    # Calculate correlations
+    correlations = df_clean.corr()
+    print(correlations)
+    return correlations
+
+
+correlation_heatmap_querybased("SELECT * FROM data WHERE gender = 'M' AND Age > 35")
 
 def data_summary(csv_file_path):
     data = pd.read_csv(csv_file_path)
@@ -139,29 +146,37 @@ query  = "select the female patients that is older than 35 years"
 
 def performQuerySearchByNL(query, csv_file_path):
     prompt = f"""
-    From the database  that is indicated by angel brackets\
+    From the table which name is: data\
     write the query search that is indicated by\
-    triple backticks, in sql languange\ 
-    Also start to a new line after 10 words\
+    triple backticks, in sql languange\
+    A few data example is indicated by angel brackets, make the value names and types consistent\
+    for example if you look the data, you will see that column 'gender' has values 'M' or 'F', use same\
+    for your query\
+    I also want you to look at the following column names: {data.columns.tolist()}, make these column names and names at query consistent
+    Also, just return resulting query string, not start and end your output with triple backticks\
 
-     <{csv_file_path}>  ```{query}```"""
+     <{data[0:10]}>  ```{query}```"""
 
     return get_completion(prompt)
 
 
-def analyseHeatmap(csv_file_path):
+def analyseHeatmap(query, query_nl):
     prompt = f"""
-    Analyse the correlation heatmap that is indicated by triple backticks\
+    Analyse the correlation heatmap that is indicated by triple backticks without mentioning 'area','avg_depth', 'maximum_depth', 'volume' relations \
     make informative comments about it\
-    then based on your comments, give bussiness advices.\
-    Also start to a new line after 10 words\
+    the comments should be based on query search results, query is indicated by angel brackets: <{query_nl}>\
+        
+    Heatmap: ```{correlation_heatmap_querybased(query)}```
    
     Use the following format:
-    Analyse: <Your analysis from data>
-    Summary: <a brief summary of analysis mostly indicating most informative analysis piece>
-    Bussiness Advices: <Give bussiness advices based on your analysis>
 
-     Heatmap: ```{correlation_heatmap(csv_file_path)}``` """
+    Exact Query in natural language: write the exact query in natural langugage which is {query_nl}
+    
+    Exact Query in sql form:  write the exact query in sql form which is: {query}
+    
+    Analysis: Your analysis from heatmap.
+    
+    """
 
     return get_completion(prompt)
 
@@ -196,22 +211,27 @@ def analyseStats(csv_file_path):
     return get_completion(prompt)
 
 
-def analyseMultipleLinearRegression(csv_file_path, features, label):
+def analyseMultipleLinearRegression(query,query_nl ,features, label):
 
     prompt = f"""
     I have applied multiple linear regression to my dataset\
     Features are delimited by triple quotes and label is delimited by angle brackets\
-    Analyse the multiple linear regression results delimited by triple backticks\
+    Analyse the multiple linear regression results delimited by triple backticks, analyse indicating feature and label names and importances. \
     Explain the results and make informative comments about results\
-    Then, give some possible bussiness advices to a wound care company based on your results\
-    Also start to a new line after writing 15 words\
-
-    Use the following format:
-    Analyse: <Your analysis from data multiple linear regression results>
-    Bussiness Advices: <Give bussiness advices based on your analysis>
-        \"\"\"{features}\"\"\"
+    the comments should be based on query search results, query is indicated by angel brackets: <{query_nl}>\
+   
+    \"\"\"{features}\"\"\"
         <{label}>
-     ```{dataScience.analyse_ultra(csv_file_path, features, label)}```  """
+     ```{dataScience.analyse_ultra_querybased(query, features, label)}``` 
+    Use the following format:
+    
+    Exact Query in natural language: write the exact query in natural langugage which is {query_nl}
+    
+    Exact Query in sql form:  write the exact query in sql form which is: {query}
+
+    Analyse: <Your analysis from data multiple linear regression results  indicated by triple backticks>
+
+      """
 
     return get_completion(prompt)
 
@@ -224,7 +244,7 @@ def visualize_pca_results():
 
     # Convert the result back to DataFrame
     df_pca = pd.DataFrame(result["principal_components"])
-
+"""
     # Visualize the results
     plt.figure(figsize=(8,6))
     plt.scatter(df_pca['principal component 1'], df_pca['principal component 2'], edgecolor='k')
@@ -233,10 +253,15 @@ def visualize_pca_results():
     plt.title('Principal Component Analysis (2D)')
     plt.grid(True)
     plt.show()
+"""
+#visualize_pca_results()
 
-visualize_pca_results()
-
+label = ['maximum_length']
+features = ['avg_depth', 'maximum_width', 'area', 'volume']
 
 #print(analyseMultipleLinearRegression('inSightDataCR_May2020_Koc.csv', features, label))
 
+#print(analyseHeatmap(csv_file_path))
+
 #print(principal_component_analysis())
+#print(performQuerySearchByNL('select female patients who are older than 25 years old', csv_file_path))

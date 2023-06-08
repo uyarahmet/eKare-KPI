@@ -1,8 +1,10 @@
+import sqlite3
+
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
 
-
+import sqlite3
 
 
 
@@ -103,8 +105,43 @@ def analyse_ultra(csv_file_path, features, label):
     # Print out the results
     return results.summary()
 
+def analyse_ultra_querybased(query, features, label):
+    # Read the CSV file into a DataFrame
+    conn = sqlite3.connect('ekare.db')
+
+    # Read data from the table into a DataFrame
+    df = pd.read_sql_query(query, conn)
+
+    # Select your columns
+    df_selected = df[features + label]
+
+    df_selected = df_selected.apply(pd.to_numeric, errors='coerce')
+
+    # Drop missing values
+    df_clean = df_selected.dropna()
+
+    # Define the dependent variable (y) and the independent variables (X)
+    y = df_clean[label]
+    X = df_clean[features]
+
+    # Add a constant to the independent variables (a requirement for statsmodels)
+    X = sm.add_constant(X)
+
+    # Fit the model
+    model = sm.OLS(y, X)
+    results = model.fit()
+
+    # Print out the results
+    return results.summary()
 
 label = ['maximum_length']
 features = ['avg_depth', 'maximum_width', 'area', 'volume']
 
-print(analyse_ultra('inSightDataCR_May2020_Koc.csv', features, label))
+print(analyse_ultra_querybased("SELECT * FROM data WHERE gender = 'F' AND Age > 35", features, label))
+
+
+#label = ['maximum_length']
+#features = ['avg_depth', 'maximum_width', 'area', 'volume']
+
+#print(analyse_ultra('inSightDataCR_May2020_Koc.csv', features, label))
+
