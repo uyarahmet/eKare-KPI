@@ -920,7 +920,7 @@ async def read_form(request: Request, input_string: str = Form(...)):
 async def read_form(request: Request):
     return templates.TemplateResponse('form.html', {"request": request})
 
-
+"""
 @app.post("/heatmap_results")
 async def heatmap_results(request: Request, input_string1: str = Form(...)):
 
@@ -934,7 +934,16 @@ async def heatmap_results(request: Request, input_string1: str = Form(...)):
         "analysis:" : analysis
 
     }
+"""
 
+@app.post("/heatmap_results")
+async def heatmap_results(request: Request, input_string1: str = Form(...)):
+    a = str(input_string1)
+    correlations = prompt.correlation_heatmap_querybased(prompt.performQuerySearchByNL(input_string1, 'inSightDataCR_May2020_Koc.csv'))
+    analysis = query_search_and_analyze_heatmap(a)
+    return templates.TemplateResponse("results.html", {"request": request, "correlations": correlations, "analysis": analysis})
+
+"""
 @app.post("/regression_results")
 async def regression_results(request: Request, input_string1: str = Form(...), input_string2: str = Form(...), input_string3: str = Form(...)):
 
@@ -945,15 +954,23 @@ async def regression_results(request: Request, input_string1: str = Form(...), i
 
     regression_summary = dataScience.analyse_ultra_querybased(query_sql, features_list, label_list)
     analysis = prompt.analyseMultipleLinearRegression(query_sql, input_string1, features_list, label_list)
-
-
-
     return {
         "regression_summary:" : str(regression_summary),
         "analysis:" : analysis
-
     }
+"""
 
+@app.post("/regression_results")
+async def regression_results(request: Request, input_string1: str = Form(...), input_string2: str = Form(...), input_string3: str = Form(...)):
+
+    query_sql = prompt.performQuerySearchByNL(input_string1, "inSightDataCR_May2020_Koc")
+    features_list = input_string2.split()
+    label_list = [input_string3]
+
+    regression_summary = dataScience.analyse_ultra_querybased(query_sql, features_list, label_list)
+    analysis = prompt.analyseMultipleLinearRegression(query_sql, input_string1, features_list, label_list)
+
+    return templates.TemplateResponse("regression.html", {"request": request, "regression_summary": regression_summary, "analysis": analysis})
 
 
 def query_search_and_analyze_heatmap(query: str, csv_file_path: str = "inSightDataCR_May2020_Koc.csv"):

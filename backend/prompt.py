@@ -17,7 +17,7 @@ data = pd.read_csv('inSightDataCR_May2020_Koc.csv')
 # Print the names of the features
 #print(data.columns.tolist())
 
-openai.api_key = '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'
+openai.api_key = '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'
 
 def get_completion(prompt, model="gpt-3.5-turbo"):
     messages = [{"role": "user", "content": prompt}]
@@ -65,8 +65,10 @@ def correlation_heatmap_querybased(query):
     df_clean = df_selected.dropna()
     # Calculate correlations
     correlations = df_clean.corr()
-    print(correlations)
-    return correlations
+
+    correlations_str = correlations.to_string()
+
+    return correlations_str
 
 
 correlation_heatmap_querybased("SELECT * FROM data WHERE gender = 'M' AND Age > 35")
@@ -225,9 +227,9 @@ def analyseMultipleLinearRegression(query,query_nl ,features, label):
      ```{dataScience.analyse_ultra_querybased(query, features, label)}``` 
     Use the following format:
     
-    Exact Query in natural language: write the exact query in natural langugage which is {query_nl}
+    Exact Query in natural language: write the exact query in natural langugage which is {query_nl}  then start a new line\
     
-    Exact Query in sql form:  write the exact query in sql form which is: {query}
+    Exact Query in sql form:  write the exact query in sql form which is: {query}then start a new line\
 
     Analyse: <Your analysis from data multiple linear regression results  indicated by triple backticks>
 
